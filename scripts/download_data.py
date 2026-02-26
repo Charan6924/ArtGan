@@ -1,12 +1,16 @@
-import os
 import zipfile
 import urllib.request
 import sys
 from pathlib import Path
 
+try:
+    import gdown
+    HAS_GDOWN = True
+except ImportError:
+    HAS_GDOWN = False
 
-dataset_url = "http://web.fsktm.um.edu.my/~cschan/source/ICIP2017/wikiart.zip"
-backup_url = "https://drive.google.com/uc?id=1vTChp3nU5GQeLkPwotrybpUGUXj12BTK&export=download"
+DATASET_URL = "http://web.fsktm.um.edu.my/~cschan/source/ICIP2017/wikiart.zip"
+GDRIVE_ID = "1vTChp3nU5GQeLkPwotrybpUGUXj12BTK"
 
 
 def download(url, dest_path):
@@ -24,6 +28,17 @@ def download(url, dest_path):
 
     urllib.request.urlretrieve(url, dest_path, progress_hook)
     print("complete!")
+
+
+def download_gdrive(file_id, dest_path):
+    if not HAS_GDOWN:
+        print("gdown not installed. Run: pip install gdown")
+        return False
+    print(f"downloading from Google Drive...")
+    print(f"destination: {dest_path}")
+    url = f"https://drive.google.com/uc?id={file_id}"
+    gdown.download(url, str(dest_path), quiet=False)
+    return dest_path.exists()
 
 
 def extract_zip(zip_path, extract_to):
@@ -53,11 +68,13 @@ def main():
 
     if not zip_path.exists():
         try:
-            download(dataset_url, zip_path)
+            download(DATASET_URL, zip_path)
         except Exception as e:
-            print('failed')
-            print(f"Error: {e}")
-            return
+            print(f"primary URL failed: {e}")
+            print("trying Google Drive...")
+            if not download_gdrive(GDRIVE_ID, zip_path):
+                print("download failed")
+                return
 
     extract_zip(zip_path, data_dir)
     zip_path.unlink()
