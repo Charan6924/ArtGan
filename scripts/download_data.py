@@ -5,14 +5,13 @@ import sys
 from pathlib import Path
 
 
-DATASET_URL = "http://web.fsktm.um.edu.my/~cschan/source/ICIP2017/wikiart.zip"
-BACKUP_URL = "https://drive.google.com/uc?id=1vTChp3nU5GQeLkPwotrybpUGUXj12BTK&export=download"
+dataset_url = "http://web.fsktm.um.edu.my/~cschan/source/ICIP2017/wikiart.zip"
+backup_url = "https://drive.google.com/uc?id=1vTChp3nU5GQeLkPwotrybpUGUXj12BTK&export=download"
 
 
-def download_with_progress(url, dest_path):
-    """Download file with progress bar."""
-    print(f"Downloading from {url}")
-    print(f"Destination: {dest_path}")
+def download(url, dest_path):
+    print(f"downloading from {url}")
+    print(f"destination: {dest_path}")
 
     def progress_hook(block_num, block_size, total_size):
         downloaded = block_num * block_size
@@ -24,12 +23,11 @@ def download_with_progress(url, dest_path):
         sys.stdout.flush()
 
     urllib.request.urlretrieve(url, dest_path, progress_hook)
-    print("\nDownload complete!")
+    print("complete!")
 
 
 def extract_zip(zip_path, extract_to):
-    """Extract zip file with progress."""
-    print(f"Extracting to {extract_to}")
+    print(f"extracting to {extract_to}")
     with zipfile.ZipFile(zip_path, 'r') as zf:
         members = zf.namelist()
         total = len(members)
@@ -37,9 +35,9 @@ def extract_zip(zip_path, extract_to):
             zf.extract(member, extract_to)
             if i % 1000 == 0:
                 percent = (i + 1) * 100 / total
-                sys.stdout.write(f"\rExtracting: {percent:.1f}% ({i + 1}/{total} files)")
+                sys.stdout.write(f"\rextracting: {percent}% ({i + 1}/{total} files)")
                 sys.stdout.flush()
-    print("\nExtraction complete!")
+    print("complete!")
 
 
 def main():
@@ -50,24 +48,20 @@ def main():
     zip_path = data_dir / "wikiart.zip"
 
     if (data_dir / "wikiart").exists():
-        print("Dataset already exists at data/wikiart")
+        print("data already exists at")
         return
 
     if not zip_path.exists():
         try:
-            download_with_progress(DATASET_URL, zip_path)
+            download(dataset_url, zip_path)
         except Exception as e:
-            print(f"Primary URL failed: {e}")
-            print("Try downloading manually from Google Drive:")
-            print("https://drive.google.com/file/d/1vTChp3nU5GQeLkPwotrybpUGUXj12BTK")
+            print('failed')
+            print(f"Error: {e}")
             return
 
     extract_zip(zip_path, data_dir)
-
-    delete = input("Delete zip file to save space? [y/N]: ").lower()
-    if delete == 'y':
-        zip_path.unlink()
-        print("Zip file deleted.")
+    zip_path.unlink()
+    print("zip file deleted.")
 
     print("\nDataset ready at data/wikiart")
     print("Structure:")
