@@ -123,7 +123,7 @@ def build_model(config=None):
         'num_artists': 1119,
         'rnn_hidden': 512,
         'rnn_layers': 2,
-        'dropout': 0.3,
+        'dropout': 0.4,
         'freeze_backbone': True
     }
     if config:

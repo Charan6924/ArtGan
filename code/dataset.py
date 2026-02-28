@@ -76,9 +76,10 @@ def get_transforms(split='train', image_size=224):
 
     if split == 'train':
         return transforms.Compose([
-            transforms.RandomCrop(image_size),
+            transforms.RandomResizedCrop(image_size, scale=(0.8, 1.0)),
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
+            transforms.RandomRotation(15),
             transforms.ToTensor(),
             normalize
         ])
