@@ -3,6 +3,7 @@ from PIL import Image
 from torch.utils.data import Dataset, DataLoader
 from torchvision import transforms
 import random
+Image.MAX_IMAGE_PIXELS = None
 
 
 class WikiArtDataset(Dataset):
@@ -42,26 +43,30 @@ class WikiArtDataset(Dataset):
         return len(self.images)
 
     def __getitem__(self, idx):
-        img_path = self.images[idx]
+        try:
+            img_path = self.images[idx]
+            image = Image.open(img_path)
+            if image.size[0] * image.size[1] > 50_000_000:  # skip >50MP images
+                return self.__getitem__((idx + 1) % len(self))
+            image = image.convert('RGB')
 
-        image = Image.open(img_path).convert('RGB')
+            style = img_path.parent.name
+            artist = img_path.stem.split('_')[0]
 
-        style = img_path.parent.name
-        artist = img_path.stem.split('_')[0]
+            style_idx = self.style_to_idx[style]
+            artist_idx = self.artist_to_idx[artist]
 
-        style_idx = self.style_to_idx[style]
-        artist_idx = self.artist_to_idx[artist]
+            if self.transform:
+                image = self.transform(image)
 
-        if self.transform:
-            image = self.transform(image)
-
-        return {
-            'image': image,
-            'style': style_idx,
-            'artist': artist_idx,
-            'path': str(img_path)
-        }
-
+            return {
+                'image': image,
+                'style': style_idx,
+                'artist': artist_idx,
+                'path': str(img_path)
+            }
+        except (OSError, Exception):
+            return self.__getitem__((idx + 1) % len(self))
 
 def get_transforms(split='train', image_size=224):
     normalize = transforms.Normalize(
@@ -71,7 +76,6 @@ def get_transforms(split='train', image_size=224):
 
     if split == 'train':
         return transforms.Compose([
-            transforms.Resize((256, 256)),
             transforms.RandomCrop(image_size),
             transforms.RandomHorizontalFlip(),
             transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),
@@ -86,7 +90,7 @@ def get_transforms(split='train', image_size=224):
         ])
 
 
-def create_dataloaders(root_dir, batch_size=32, num_workers=4, image_size=224):
+def create_dataloaders(root_dir, batch_size=512, num_workers=3, image_size=224):
     train_dataset = WikiArtDataset(
         root_dir,
         split='train',
