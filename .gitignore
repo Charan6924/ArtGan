@@ -10,5 +10,5 @@ wheels/
 .venv
 data/
 data/*
-
+code/checkpoints/
 CLAUDE.md
