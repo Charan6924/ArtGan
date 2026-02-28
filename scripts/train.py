@@ -9,6 +9,7 @@ import numpy as np
 from cnn_rnn import ArtClassifier
 import time
 import tqdm
+from validate import validate
 
 train_loader, val_loader, test_loader, dataset = create_dataloaders( #type: ignore
       root_dir='/mnt/vstor/courses/csds312/cvx166/ArtGan/data/wikiart',
@@ -53,3 +54,4 @@ for epoch in range(num_epochs):
 
     avg_loss = total_loss / len(train_loader)
     print(f'Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}')
+
