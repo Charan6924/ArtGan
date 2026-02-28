@@ -1,11 +1,6 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-import sys
-import os
 from dataset import create_dataloaders
-import matplotlib.pyplot as plt
-import numpy as np
 from cnn_rnn import ArtClassifier
 import time
 import tqdm
@@ -43,7 +38,6 @@ for epoch in range(num_epochs):
             combined_loss = style_loss + artist_loss
         combined_loss.backward()
         optimizer.step()
-        scheduler.step()
 
         total_loss += combined_loss.item()
         t2 = time.time()
@@ -52,6 +46,18 @@ for epoch in range(num_epochs):
             'time': f'{t2-t1:.3f}s'
         })
 
+    scheduler.step()
     avg_loss = total_loss / len(train_loader)
-    print(f'Epoch {epoch+1}/{num_epochs}, Loss: {avg_loss:.4f}')
+
+    val_loss, style_acc, artist_acc = validate(model, val_loader, loss)
+    print(f'Epoch {epoch+1}/{num_epochs} | Train Loss: {avg_loss:.4f} | Val Loss: {val_loss:.4f} | Style Acc: {style_acc:.4f} | Artist Acc: {artist_acc:.4f}')
+
+    torch.save({
+        'epoch': epoch,
+        'model_state_dict': model.state_dict(),
+        'optimizer_state_dict': optimizer.state_dict(),
+        'scheduler_state_dict': scheduler.state_dict(),
+        'train_loss': avg_loss,
+        'val_loss': val_loss,
+    }, f'checkpoint_epoch_{epoch+1}.pt')
 
