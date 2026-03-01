@@ -58,3 +58,23 @@ Checkpoints are saved as `checkpoint_epoch_N.pt` after each epoch.
 ├── data/               # Dataset directory
 └── main.py
 ```
+
+## Results
+
+Trained for 68 epochs: 53 epochs with frozen backbone, then 15 epochs fine-tuning the ResNet backbone.
+
+| Task | Accuracy |
+|------|----------|
+| Style (27 classes) | 58.3% |
+| Artist (1119 classes) | 40.0% |
+
+### Training Curves
+
+<p align="center">
+  <img src="code/style_acc.png" width="45%" />
+  <img src="code/artist_acc.png" width="45%" />
+</p>
+
+<p align="center">
+  <img src="code/val_loss.png" width="45%" />
+</p>
