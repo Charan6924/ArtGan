@@ -21,23 +21,6 @@ A CNN-RNN architecture for classifying paintings by style and artist using the W
 uv sync
 ```
 
-## Dataset
-
-Download the WikiArt dataset (~25GB):
-
-```bash
-python scripts/download_data.py
-```
-
-Expected structure:
-```
-data/wikiart/
-├── Abstract_Expressionism/
-├── Baroque/
-├── Cubism/
-└── ...
-```
-
 ## Training
 
 ```bash
@@ -68,13 +51,18 @@ Trained for 68 epochs: 53 epochs with frozen backbone, then 15 epochs fine-tunin
 | Style (27 classes) | 58.3% |
 | Artist (1119 classes) | 40.0% |
 
-### Training Curves
+### Accuracy
 
-<p align="center">
-  <img src="code/style_acc.png" width="45%" />
-  <img src="code/artist_acc.png" width="45%" />
-</p>
+| Style | Artist |
+|:-----:|:------:|
+| ![Style Accuracy](code/style_acc.png) | ![Artist Accuracy](code/artist_acc.png) |
 
-<p align="center">
-  <img src="code/val_loss.png" width="45%" />
-</p>
+### Loss
+
+| Training | Validation |
+|:--------:|:----------:|
+| ![Training Loss](code/train_loss.png) | ![Validation Loss](code/val_loss.png) |
+
+### Learning Rate Schedule
+
+![Learning Rate](code/lr.png)
