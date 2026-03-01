@@ -20,8 +20,7 @@ print('created model')
 
 os.makedirs('checkpoints', exist_ok=True)
 
-def train_phase(model, compiled_model, train_loader, val_loader, optimizer, scheduler,
-               loss_fn, num_epochs, patience, phase_name, log_file):
+def train_phase(model, compiled_model, train_loader, val_loader, optimizer, scheduler,loss_fn, num_epochs, patience, phase_name, log_file):
     best_val_loss = float('inf')
     patience_counter = 0
 
