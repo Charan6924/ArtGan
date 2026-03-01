@@ -83,8 +83,9 @@ def compute_metrics(y_true, y_pred, y_probs, class_names, task_name):
         y_true, y_pred, average='weighted', zero_division=0
     )
 
-    top3_acc = top_k_accuracy_score(y_true, y_probs, k=3)
-    top5_acc = top_k_accuracy_score(y_true, y_probs, k=5)
+    labels = np.arange(y_probs.shape[1])
+    top3_acc = top_k_accuracy_score(y_true, y_probs, k=3, labels=labels)
+    top5_acc = top_k_accuracy_score(y_true, y_probs, k=5, labels=labels)
 
     print(f'\n{"="*50}')
     print(f'{task_name.upper()} METRICS')
