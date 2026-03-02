@@ -10,22 +10,21 @@ import os
 
 train_loader, val_loader, test_loader, dataset = create_dataloaders(
     root_dir='/mnt/vstor/courses/csds312/cvx166/ArtGan/data/wikiart',
-    batch_size=1024
+    batch_size=256
 )
 
 device = 'cuda'
 model = ArtClassifier().to(device)
-compiled_model = torch.compile(model)
 print('created model')
 
 os.makedirs('checkpoints', exist_ok=True)
 
-def train_phase(model, compiled_model, train_loader, val_loader, optimizer, scheduler,loss_fn, num_epochs, patience, phase_name, log_file):
+def train_phase(model, train_loader, val_loader, optimizer, scheduler, loss_fn, num_epochs, patience, phase_name, log_file):
     best_val_loss = float('inf')
     patience_counter = 0
 
     for epoch in range(num_epochs):
-        compiled_model.train()
+        model.train()
         total_loss = 0
         pbar = tqdm.tqdm(train_loader, desc=f'{phase_name} Epoch {epoch+1}/{num_epochs}')
 
@@ -37,7 +36,7 @@ def train_phase(model, compiled_model, train_loader, val_loader, optimizer, sche
 
             optimizer.zero_grad()
             with torch.autocast(device_type=device, dtype=torch.bfloat16):
-                outputs = compiled_model(images)
+                outputs = model(images)
                 style_loss = loss_fn(outputs['style'], style_labels)
                 artist_loss = loss_fn(outputs['artist'], artist_labels)
                 combined_loss = style_loss + artist_loss
@@ -53,7 +52,7 @@ def train_phase(model, compiled_model, train_loader, val_loader, optimizer, sche
 
         scheduler.step()
         train_loss = total_loss / len(train_loader)
-        val_loss, style_acc, artist_acc = validate(compiled_model, val_loader, loss_fn)
+        val_loss, style_acc, artist_acc = validate(model, val_loader, loss_fn)
 
         print(f'{phase_name} Epoch {epoch+1}/{num_epochs} | Train Loss: {train_loss:.4f} | '
               f'Val Loss: {val_loss:.4f} | Style Acc: {style_acc:.4f} | Artist Acc: {artist_acc:.4f}')
@@ -102,7 +101,8 @@ optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
 num_epochs_phase1 = 200
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs_phase1)
 
-train_phase(model, compiled_model, train_loader, val_loader,optimizer, scheduler, loss_fn,num_epochs=num_epochs_phase1,patience=12,phase_name='phase1',log_file='logs.csv')
+train_phase(model, train_loader, val_loader, optimizer, scheduler, loss_fn,
+            num_epochs=num_epochs_phase1, patience=12, phase_name='phase1', log_file='logs.csv')
 
 checkpoint = torch.load('checkpoints/phase1_best.pt')
 model.load_state_dict(checkpoint['model_state_dict'])
@@ -121,6 +121,5 @@ optimizer = torch.optim.AdamW([
 ])
 scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=num_epochs_phase2)
 
-compiled_model = torch.compile(model)
-
-train_phase(model, compiled_model, train_loader, val_loader,optimizer, scheduler, loss_fn,num_epochs=num_epochs_phase2,patience=10,phase_name='phase2',log_file='logs.csv')
+train_phase(model, train_loader, val_loader, optimizer, scheduler, loss_fn,
+            num_epochs=num_epochs_phase2, patience=10, phase_name='phase2', log_file='logs.csv')

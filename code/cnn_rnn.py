@@ -3,28 +3,106 @@ import torch.nn as nn
 import torchvision.models as models
 
 
-class SpatialFeatureSequence(nn.Module):
-    def __init__(self, method='row'):
+class ConvLSTMCell(nn.Module):
+    def __init__(self, input_channels, hidden_channels, kernel_size=3):
         super().__init__()
-        self.method = method
+        self.hidden_channels = hidden_channels
+        padding = kernel_size // 2
+        self.conv = nn.Conv2d(
+            input_channels + hidden_channels,
+            4 * hidden_channels,
+            kernel_size,
+            padding=padding
+        )
+
+    def forward(self, x, state):
+        h, c = state
+        combined = torch.cat([x, h], dim=1)
+        gates = self.conv(combined)
+        i, f, o, g = gates.chunk(4, dim=1)
+        i = torch.sigmoid(i)
+        f = torch.sigmoid(f)
+        o = torch.sigmoid(o)
+        g = torch.tanh(g)
+        c_next = f * c + i * g
+        h_next = o * torch.tanh(c_next)
+        return h_next, c_next
+
+    def init_hidden(self, batch_size, height, width, device):
+        return (
+            torch.zeros(batch_size, self.hidden_channels, height, width, device=device),
+            torch.zeros(batch_size, self.hidden_channels, height, width, device=device)
+        )
+
+
+class ConvLSTM(nn.Module):
+    def __init__(self, input_channels, hidden_channels, kernel_size=3, num_layers=2, bidirectional=True, dropout=0.3):
+        super().__init__()
+        self.num_layers = num_layers
+        self.bidirectional = bidirectional
+        self.hidden_channels = hidden_channels
+
+        self.forward_cells = nn.ModuleList()
+        self.backward_cells = nn.ModuleList() if bidirectional else None
+        self.dropout_layers = nn.ModuleList()
+
+        for i in range(num_layers):
+            in_ch = input_channels if i == 0 else hidden_channels * (2 if bidirectional else 1)
+            self.forward_cells.append(ConvLSTMCell(in_ch, hidden_channels, kernel_size))
+            if bidirectional:
+                self.backward_cells.append(ConvLSTMCell(in_ch, hidden_channels, kernel_size))
+            if i < num_layers - 1:
+                self.dropout_layers.append(nn.Dropout2d(dropout))
 
     def forward(self, x):
-        b, c, h, w = x.shape
-        if self.method == 'row':
-            x = x.permute(0, 2, 3, 1).reshape(b, h * w, c)
-        elif self.method == 'column':
-            x = x.permute(0, 3, 2, 1).reshape(b, h * w, c)
+        batch_size, seq_len, _, height, width = x.shape
+        device = x.device
+
+        for layer_idx in range(self.num_layers):
+            forward_cell = self.forward_cells[layer_idx]
+            h, c = forward_cell.init_hidden(batch_size, height, width, device)
+            forward_outputs = []
+            for t in range(seq_len):
+                h, c = forward_cell(x[:, t], (h, c))
+                forward_outputs.append(h)
+
+            if self.bidirectional and self.backward_cells is not None:
+                backward_cell = self.backward_cells[layer_idx]
+                h, c = backward_cell.init_hidden(batch_size, height, width, device)
+                backward_outputs = []
+                for t in range(seq_len - 1, -1, -1):
+                    h, c = backward_cell(x[:, t], (h, c))
+                    backward_outputs.insert(0, h)
+                outputs = [torch.cat([forward_outputs[t], backward_outputs[t]], dim=1) for t in range(seq_len)]
+            else:
+                outputs = forward_outputs
+
+            x = torch.stack(outputs, dim=1)
+
+            if layer_idx < self.num_layers - 1:
+                x = x.view(batch_size * seq_len, -1, height, width)
+                x = self.dropout_layers[layer_idx](x)
+                x = x.view(batch_size, seq_len, -1, height, width)
+
         return x
 
-
-class Attention(nn.Module):
-    def __init__(self, hidden_size):
+class TemporalAttention(nn.Module):
+    def __init__(self, channels):
         super().__init__()
-        self.attention = nn.Linear(hidden_size, 1)
+        self.attention = nn.Sequential(
+            nn.AdaptiveAvgPool2d(1),
+            nn.Flatten(),
+            nn.Linear(channels, 1)
+        )
 
     def forward(self, x):
-        weights = torch.softmax(self.attention(x), dim=1)
-        return (x * weights).sum(dim=1)
+        seq_len = x.shape[1]
+        scores = []
+        for i in range(seq_len):
+            scores.append(self.attention(x[:, i]))
+        scores = torch.softmax(torch.cat(scores, dim=1), dim=1).unsqueeze(-1).unsqueeze(-1).unsqueeze(-1)
+        weighted = (x * scores).sum(dim=1)
+        return weighted
 
 
 class ArtClassifier(nn.Module):
@@ -32,7 +110,7 @@ class ArtClassifier(nn.Module):
         self,
         num_styles=27,
         num_artists=1119,
-        rnn_hidden=512,
+        rnn_hidden=256,
         rnn_layers=2,
         dropout=0.3,
         freeze_backbone=True
@@ -47,33 +125,38 @@ class ArtClassifier(nn.Module):
                 param.requires_grad = False
 
         self.feature_dim = 2048
-        self.seq_len = 49  
+        self.spatial_size = 7
 
-        self.to_sequence = SpatialFeatureSequence(method='row')
-
-        self.rnn = nn.LSTM(
-            input_size=self.feature_dim,
-            hidden_size=rnn_hidden,
-            num_layers=rnn_layers,
-            batch_first=True,
-            bidirectional=True,
-            dropout=dropout if rnn_layers > 1 else 0
+        self.channel_reduce = nn.Sequential(
+            nn.Conv2d(self.feature_dim, 512, kernel_size=1),
+            nn.BatchNorm2d(512),
+            nn.ReLU()
         )
 
-        rnn_output_size = rnn_hidden * 2  # bidirectional
+        self.convlstm = ConvLSTM(
+            input_channels=512,
+            hidden_channels=rnn_hidden,
+            kernel_size=3,
+            num_layers=rnn_layers,
+            bidirectional=True,
+            dropout=dropout
+        )
 
-        self.attention = Attention(rnn_output_size)
+        rnn_output_channels = rnn_hidden * 2
+
+        self.temporal_attention = TemporalAttention(rnn_output_channels)
+        self.global_pool = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout(dropout)
 
         self.style_head = nn.Sequential(
-            nn.Linear(rnn_output_size, 256),
+            nn.Linear(rnn_output_channels, 256),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(256, num_styles)
         )
 
         self.artist_head = nn.Sequential(
-            nn.Linear(rnn_output_size, 512),
+            nn.Linear(rnn_output_channels, 512),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(512, num_artists)
@@ -84,10 +167,14 @@ class ArtClassifier(nn.Module):
 
     def forward(self, x, task='all'):
         features = self.extract_features(x)
-        seq = self.to_sequence(features)
+        features = self.channel_reduce(features)
 
-        rnn_out, _ = self.rnn(seq)
-        pooled = self.attention(rnn_out)
+        b, c, h, w = features.shape
+        seq = features.permute(0, 2, 1, 3).reshape(b, h, c, 1, w)
+
+        rnn_out = self.convlstm(seq)
+        pooled = self.temporal_attention(rnn_out)
+        pooled = self.global_pool(pooled).flatten(1)
         pooled = self.dropout(pooled)
 
         if task == 'style':
@@ -102,9 +189,12 @@ class ArtClassifier(nn.Module):
 
     def get_embedding(self, x):
         features = self.extract_features(x)
-        seq = self.to_sequence(features)
-        rnn_out, _ = self.rnn(seq)
-        return self.attention(rnn_out)
+        features = self.channel_reduce(features)
+        b, c, h, w = features.shape
+        seq = features.permute(0, 2, 1, 3).reshape(b, h, c, 1, w)
+        rnn_out = self.convlstm(seq)
+        pooled = self.temporal_attention(rnn_out)
+        return self.global_pool(pooled).flatten(1)
 
     def unfreeze_backbone(self, layers=-1):
         if layers == -1:
@@ -121,7 +211,7 @@ def build_model(config=None):
     defaults = {
         'num_styles': 27,
         'num_artists': 1119,
-        'rnn_hidden': 512,
+        'rnn_hidden': 256,
         'rnn_layers': 2,
         'dropout': 0.4,
         'freeze_backbone': True
