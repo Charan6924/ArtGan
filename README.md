@@ -55,14 +55,14 @@ Trained for 68 epochs: 53 epochs with frozen backbone, then 15 epochs fine-tunin
 
 | Style | Artist |
 |:-----:|:------:|
-| ![Style Accuracy](code/style_acc.png) | ![Artist Accuracy](code/artist_acc.png) |
+| ![Style Accuracy](code/plots/style_acc.png) | ![Artist Accuracy](code/plots/artist_acc.png) |
 
 ### Loss
 
 | Training | Validation |
 |:--------:|:----------:|
-| ![Training Loss](code/train_loss.png) | ![Validation Loss](code/val_loss.png) |
+| ![Training Loss](code/plots/train_loss.png) | ![Validation Loss](code/plots/val_loss.png) |
 
 ### Learning Rate Schedule
 
-![Learning Rate](code/lr.png)
+![Learning Rate](code/plots/lr.png)
