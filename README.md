@@ -52,9 +52,7 @@ Trained for 68 epochs: 53 epochs with frozen backbone, then 15 epochs fine-tunin
 | Style (27 classes) | 58.3% |
 | Artist (1119 classes) | 40.0% |
 
-## Analysis
-
-### Classification Performance
+## Classification Performance
 
 | Style Accuracy | Artist Accuracy |
 |:--------------:|:---------------:|
@@ -64,14 +62,8 @@ Trained for 68 epochs: 53 epochs with frozen backbone, then 15 epochs fine-tunin
 |:-------------:|:---------------:|
 | ![Training Loss](code/plots/train_loss.png) | ![Validation Loss](code/plots/val_loss.png) |
 
-**Learning Rate Schedule**
-![Learning Rate](code/plots/lr.png)
 
-**Style Confusion Matrix**
-![Style Confusion Matrix](code/plots/style_confusion.png)
-
-
-### Outlier Detection
+## Outlier Detection
 
 Outliers are identified by measuring how far an image's embedding is from the center of its assigned class (style or artist). The process is as follows:
 
